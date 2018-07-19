@@ -13,9 +13,12 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <poll.h>
+#include <arpa/inet.h>
 
-//#define SOCK_TYPE AF_INET
-#define SOCK_TYPE AF_UNIX
+#define SOCK_TYPE AF_INET
+#define LISTEN_ADDRESS "199.180.133.213"
+#define LISTEN_PORT 80
+// #define SOCK_TYPE AF_UNIX
 
 #if !defined(likely)
 #if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__clang__)
@@ -54,7 +57,7 @@ void *memmem(const void *haystack, size_t n, const void *needle, size_t m)
 {
 	if (m > n || !m || !n)
 		return NULL;
-	if (__builtin_expect((m > 1), 1))
+	if (likely(m > 1))
 	{
 		const unsigned char* y = (const unsigned char*) haystack;
 		const unsigned char* x = (const unsigned char*) needle;
@@ -259,13 +262,17 @@ int main(int argc, char* argv[])
 			perror("setsockopt(SO_REUSEPORT) failed");
 #endif
 
+		uint32_t addri;
+		// TODO: error detection
+		inet_pton(AF_INET,LISTEN_ADDRESS,&addri);
 		struct sockaddr_in master_addr =
-		{ .sin_family = AF_INET, .sin_port = htons(9999), .sin_addr.s_addr =
-				htonl(INADDR_ANY) };
+		{ .sin_family = AF_INET, .sin_port = htons(LISTEN_PORT), .sin_addr.s_addr =
+				addri /*htonl(INADDR_ANY)*/ };
 		nf(
 				bind(master, (struct sockaddr* )&master_addr,
 						sizeof(master_addr)) != -1, "bind");
 		nf(listen(master, 100) != -1, "listen");
+		printf("listening on %s:%i\n",LISTEN_ADDRESS,LISTEN_PORT);
 	}
 #else
 #error "SOCK_TYPE must be defined as either AF_UNIX for unix sockets, or AF_INET for ipv4 connections"
