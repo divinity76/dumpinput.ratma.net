@@ -21,7 +21,7 @@
 // #define SOCK_TYPE AF_UNIX
 
 #if !defined(likely)
-#if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__clang__)
+#if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__clang__) || (defined(__IBMC__) || defined(__IBMCPP__))
 #define likely(x)       __builtin_expect(!!(x),1)
 #define unlikely(x)     __builtin_expect(!!(x),0)
 #else
