@@ -15,14 +15,10 @@
 #include <poll.h>
 #include <arpa/inet.h>
 
+#ifndef SOCK_TYPE
 #define SOCK_TYPE AF_INET
-#ifndef LISTEN_ADDRESS
-#define LISTEN_ADDRESS "199.180.133.213"
-#endif
-#ifndef LISTEN_PORT
-#define LISTEN_PORT 80
-#endif
 // #define SOCK_TYPE AF_UNIX
+#endif
 
 #if !defined(likely)
 #if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__clang__) || (defined(__IBMC__) || defined(__IBMCPP__))
@@ -57,6 +53,7 @@
 		exit(errno);    \
 	} \
 }
+extern int pthread_setname_np(pthread_t thread, const char *name);
 /*
  * this function is stolen from android's bionic, sorry guys.
  * This uses the "Not So Naive" algorithm, a very simple but
@@ -251,6 +248,7 @@ static void *connectionHandler(void *cid_in)
 
 int main(int argc, char* argv[])
 {
+#if SOCK_TYPE == AF_UNIX
 	if (argc != 2)
 	{
 		fprintf(stderr, "usage: %s socket_path\n", argv[0]);
@@ -258,17 +256,16 @@ int main(int argc, char* argv[])
 	}
 	const char *master_socket = argv[1];
 	if (strlen(master_socket) >= sizeof((struct sockaddr_un
-			)
-			{ 0 } .sun_path))
+					)
+					{	0}.sun_path))
 	{
 		fprintf(stderr,
 				"error: socket name is too long, cannot be longer than %li\n",
 				sizeof((struct sockaddr_un
 						)
-						{ 0 } .sun_path));
+						{	0}.sun_path));
 		exit(EXIT_FAILURE);
 	}
-#if SOCK_TYPE == AF_UNIX
 	const int master = socket(AF_UNIX, SOCK_STREAM, 0);
 	// printf("master: %i\n", master);
 	nf(master != -1, "socket");
@@ -284,6 +281,38 @@ int main(int argc, char* argv[])
 		printf("listening on: %s\n", master_addr.sun_path);
 	}
 #elif SOCK_TYPE == AF_INET
+	if (argc != 3)
+	{
+		fprintf(stderr, "usage: %s listen_address listen_port\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
+	// todo: confirm listen_address is an ip
+	const char *listen_address = argv[1];
+	uint16_t listen_port;
+	{
+		int i;
+		if (1 != sscanf(argv[2], "%i", &i))
+		{
+			fprintf(stderr,
+					"error: failed to parse argument 2 as port (sscanf failed)\n");
+			exit(EXIT_FAILURE);
+		}
+		if (i < 1)
+		{
+			fprintf(stderr,
+					"error: port number too low, valid range is 1-65535, %i recieved\n",
+					i);
+			exit(EXIT_FAILURE);
+		}
+		if (i > 0xFFFF)
+		{
+			fprintf(stderr,
+					"error: port number too high, valid range is 1-65535, %i recieved\n",
+					i);
+			exit(EXIT_FAILURE);
+		}
+		listen_port = (uint16_t) i;
+	}
 	const int master = socket(AF_INET, SOCK_STREAM, SOL_TCP);
 	nf(master != -1, "socket");
 	{
@@ -296,18 +325,17 @@ int main(int argc, char* argv[])
 				sizeof(reuse)) < 0)
 			perror("setsockopt(SO_REUSEPORT) failed");
 #endif
-
 		uint32_t addri;
 		// TODO: error detection
-		inet_pton(AF_INET, LISTEN_ADDRESS, &addri);
+		inet_pton(AF_INET, listen_address, &addri);
 		struct sockaddr_in master_addr =
-		{ .sin_family = AF_INET, .sin_port = htons(LISTEN_PORT),
+		{ .sin_family = AF_INET, .sin_port = htons(listen_port),
 				.sin_addr.s_addr = addri /*htonl(INADDR_ANY)*/};
 		nf(
 				bind(master, (struct sockaddr* )&master_addr,
 						sizeof(master_addr)) != -1, "bind");
 		nf(listen(master, 100) != -1, "listen");
-		printf("listening on %s:%i\n", LISTEN_ADDRESS, LISTEN_PORT);
+		printf("listening on %s:%i\n", listen_address, listen_port);
 	}
 #else
 #error "SOCK_TYPE must be defined as either AF_UNIX for unix sockets, or AF_INET for ipv4 connections"
