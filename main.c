@@ -16,8 +16,12 @@
 #include <arpa/inet.h>
 
 #define SOCK_TYPE AF_INET
+#ifndef LISTEN_ADDRESS
 #define LISTEN_ADDRESS "199.180.133.213"
+#endif
+#ifndef LISTEN_PORT
 #define LISTEN_PORT 80
+#endif
 // #define SOCK_TYPE AF_UNIX
 
 #if !defined(likely)
@@ -114,11 +118,36 @@ static bool writeAll(const int cid, const void *buf, const size_t len)
 	}
 	return true;
 }
-static void* connectionHandler(void *cid_in)
+static void *connectionHandler(void *cid_in)
 {
 	//printf(">%i<", __LINE__);
 	const int cid = *(int*) cid_in;
 	free(cid_in);
+#if SOCK_TYPE == AF_INET
+	do
+	{
+		// warning, this stuff only works on ipv4 (not ipv6!) for now..
+		struct sockaddr_in sa =
+		{ 0 };
+		socklen_t sl = sizeof(sa);
+		if (getpeername(cid, (struct sockaddr *) &sa, &sl))
+		{
+			// perror("getpeername() failed");
+			break;
+		}
+		else
+		{
+			char name[INET_ADDRSTRLEN] =
+			{ 0 };
+			nf(inet_ntop(AF_INET, &sa.sin_addr, name,sizeof(name)) != NULL,
+					"inet_ntop");
+			if (!pthread_setname_np(pthread_self(), name))
+			{
+				// perror("blahblah");
+			}
+		}
+	} while (false);
+#endif // AF_INET
 	char buf[500]; ///
 	struct linger l =
 	{ .l_onoff = 1, .l_linger = 100 };
@@ -270,15 +299,15 @@ int main(int argc, char* argv[])
 
 		uint32_t addri;
 		// TODO: error detection
-		inet_pton(AF_INET,LISTEN_ADDRESS,&addri);
+		inet_pton(AF_INET, LISTEN_ADDRESS, &addri);
 		struct sockaddr_in master_addr =
-		{ .sin_family = AF_INET, .sin_port = htons(LISTEN_PORT), .sin_addr.s_addr =
-				addri /*htonl(INADDR_ANY)*/ };
+		{ .sin_family = AF_INET, .sin_port = htons(LISTEN_PORT),
+				.sin_addr.s_addr = addri /*htonl(INADDR_ANY)*/};
 		nf(
 				bind(master, (struct sockaddr* )&master_addr,
 						sizeof(master_addr)) != -1, "bind");
 		nf(listen(master, 100) != -1, "listen");
-		printf("listening on %s:%i\n",LISTEN_ADDRESS,LISTEN_PORT);
+		printf("listening on %s:%i\n", LISTEN_ADDRESS, LISTEN_PORT);
 	}
 #else
 #error "SOCK_TYPE must be defined as either AF_UNIX for unix sockets, or AF_INET for ipv4 connections"
