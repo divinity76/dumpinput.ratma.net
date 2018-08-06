@@ -195,7 +195,7 @@ static void *connectionHandler(void *cid_in)
 					break;
 				}
 			} while (errno == EAGAIN /* ? || errno == EWOULDBLOCK */);
-			if (read_last == -1)
+			if (read_last == -1 || read_last == 0)
 			{
 				// some error reading, don't care which.
 				break;
