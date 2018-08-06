@@ -115,6 +115,9 @@ static bool writeAll(const int cid, const void *buf, const size_t len)
 	}
 	return true;
 }
+#define bufsize 500
+#define polltimeout 500
+
 static void *connectionHandler(void *cid_in)
 {
 	//printf(">%i<", __LINE__);
@@ -145,7 +148,6 @@ static void *connectionHandler(void *cid_in)
 		}
 	} while (false);
 #endif // AF_INET
-	char buf[500]; ///
 	struct linger l =
 	{ .l_onoff = 1, .l_linger = 100 };
 	nf(setsockopt(cid, SOL_SOCKET, SO_LINGER, &l, sizeof(l)) != -1,
@@ -156,13 +158,13 @@ static void *connectionHandler(void *cid_in)
 	bool recievedExpect100 = false;
 	bool allHeadersRecieved = false;
 	bool sentHeaders = false;
-//	if (writeAll(cid, response, sizeof(response) - 1))
 	{
+		char buf[bufsize];
 		struct pollfd fds =
 		{ .fd = cid, .events = POLLIN };
 		for (;;)
 		{
-			int pres = poll(&fds, 1, 500);
+			int pres = poll(&fds, 1, polltimeout);
 			if (pres == 0)
 			{
 				break; // timeout
